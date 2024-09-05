@@ -2,7 +2,14 @@
 #include "WS2812.h"
 
 #define LED_PIN GPIO_NUM_18
+#define TOUCH_PIN GPIO_NUM_4
 #define RMT_CHANNEL RMT_CHANNEL_0
+
+
+int touchValue;
+int ledState = LOW; // start with LED off
+bool isTouched = false; // flag to check if the touch sensor is touched
+
 
 WS2812 led(LED_PIN, RMT_CHANNEL);
 // WS2812 led(LED_PIN, RMT_CHANNEL, 255, 0, 0); // red
@@ -17,18 +24,24 @@ void setup() {
 }
 
 void loop() {
-
-  // to get random color LED, comment out the following 3 lines if you want to keep the same color
-    uint8_t currentRed = random(0, 256);
-    uint8_t currentGreen = random(0, 256);
-    uint8_t currentBlue = random(0, 256);
-    
-    led.setColor(currentRed, currentGreen, currentBlue);
-    led.lightPixels();
-    delay(500);
+    touchValue = touchRead(TOUCH_PIN);
 
 
-    led.setColor(0, 0, 0);
-    led.lightPixels();
-    delay(500);
+    if (touchValue < 40) { // Touch sensor is activated
+        if (!isTouched) { 
+            ledState = !ledState; // Toggle the LED state
+            
+            if (ledState) { // If LED is on
+                uint8_t currentRed = random(0, 256);
+                uint8_t currentGreen = random(0, 256);
+                uint8_t currentBlue = random(0, 256);
+            } else { // If LED is off
+                led.setColor(0, 0, 0);
+            }
+            led.lightPixels(); 
+            isTouched = true; 
+    } else {
+        isTouched = false;
+    }
+}
 }
