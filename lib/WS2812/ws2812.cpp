@@ -5,11 +5,9 @@ uint32_t WS2812::t1h_ticks = 0;
 uint32_t WS2812::t0l_ticks = 0;
 uint32_t WS2812::t1l_ticks = 0;
 
-// Constructor
 WS2812::WS2812(gpio_num_t pin, rmt_channel_t channel, uint8_t red, uint8_t green, uint8_t blue) 
     : ledPin(pin), rmtChannel(channel), red(red), green(green), blue(blue) {}
 
-// Setup RMT
 void WS2812::setupRMT() {
     rmt_config_t config = RMT_DEFAULT_CONFIG_TX(ledPin, rmtChannel);
     config.clk_div = 2;
@@ -28,21 +26,18 @@ void WS2812::setupRMT() {
     rmt_translator_init(rmtChannel, ws2812_rmt_adapter);
 }
 
-// Send current pixels to LED
 void WS2812::lightPixels() {
     uint8_t rgbPixels[3] = {green, red, blue};
     rmt_write_sample(rmtChannel, rgbPixels, 3, true);
     rmt_wait_tx_done(rmtChannel, pdMS_TO_TICKS(100));
 }
 
-// Set the LED color
 void WS2812::setColor(uint8_t red, uint8_t green, uint8_t blue) {
     this->red = red;
     this->green = green;
     this->blue = blue;
 }
 
-// Get the current color
 void WS2812::getColor(uint8_t &red, uint8_t &green, uint8_t &blue) {
     red = this->red;
     green = this->green;

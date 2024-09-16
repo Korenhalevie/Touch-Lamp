@@ -1,67 +1,64 @@
-#include <Arduino.h>
-#include "WS2812.h"
-#include "driver/touch_pad.h" // to wake up from touch
+#include "LEDController.h"
+#include "TouchController.h"
+#include "SleepController.h"
 
+// Constants for pins and thresholds
+#define TOUCH_PIN GPIO_NUM_4
 #define LED_PIN GPIO_NUM_18
-#define TOUCH_PIN T0 // T0 = GPIO 4
 #define RMT_CHANNEL RMT_CHANNEL_0
-#define TOUCH_THRESHOLD 20
+#define THRESHOLD 20000
+#define RELEASETHRESHOLD 7
 
-// because we are in deep sleep, ram is off, so we need to use RTC_DATA_ATTR that stores the variable in RTC memory
-RTC_DATA_ATTR bool ledState = LOW;
+// Use RTC memory to store the LED state across deep sleep cycles
+RTC_DATA_ATTR bool ledState = false;  // Tracks whether the LED is on or off
 RTC_DATA_ATTR bool isTouchHeld = false;
 
-WS2812 led(LED_PIN, RMT_CHANNEL);
+// Instantiate SleepController and TouchController globally
+SleepController sleepController(TOUCH_PIN, 1);  // Wake-up pin 4, HIGH level
+TouchController touchController(TOUCH_PIN, THRESHOLD, RELEASETHRESHOLD);
 
-void goToDeepSleep()
-{
-  touchAttachInterrupt(TOUCH_PIN, [] {}, TOUCH_THRESHOLD);
-  esp_sleep_enable_touchpad_wakeup();
-  esp_deep_sleep_start();
+// Instantiate LEDController globally
+LEDController ledController(LED_PIN, RMT_CHANNEL);
+
+void setup() {
+    Serial.begin(115200);
+    
+    // Initialize the LED controller (RMT setup)
+    ledController.setup();  
+
+    // Handle waking up from deep sleep
+    if (sleepController.isWakeUpFromDeepSleep()) {
+        Serial.println("Woke up from deep sleep");
+        isTouchHeld = false;  // Reset to avoid sleep immediately
+        
+        // Reapply the saved LED state (on or off) after waking up
+        Serial.println(ledState ? "LED ON" : "LED OFF");
+        ledController.applyState(ledState);
+    } else {
+        // On initial boot, turn off the LED
+        Serial.println("Initial boot: LED OFF");
+        ledController.applyState(false);  // Set LED off on initial boot
+    }
 }
 
-void setup()
-{
-  led.setupRMT();
+void loop() {
+    // Continuously check for touch events
+    if (touchController.detectTouch()) {
+        if (!isTouchHeld) {  // Only handle the first touch event
+            Serial.println("Touch detected!");
 
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TOUCHPAD)
-  { // check if touchpin held and it wakes up
-    if (!isTouchHeld)
-    {
-      isTouchHeld = true;
-      ledState = !ledState;
-      if (ledState)
-      {
-        uint8_t currentRed = random(0, 256);
-        uint8_t currentGreen = random(0, 256);
-        uint8_t currentBlue = random(0, 256);
-        led.setColor(currentRed, currentGreen, currentBlue);
-      }
-      else
-      {
-        led.setColor(0, 0, 0);
-      }
-      led.lightPixels();
+            // Toggle the global LED state
+            ledState = !ledState;
+            ledController.applyState(ledState);  // Apply the new LED state
+            isTouchHeld = true;
+        }
+    } else if (isTouchHeld) {
+        // If touch was previously held but now released
+        Serial.println("Touch released, entering deep sleep...");
+        isTouchHeld = false;
+
+        // Save the LED state and enter deep sleep
+        Serial.println("Saving state and entering deep sleep...");
+        sleepController.goToDeepSleep();  // Enter deep sleep after release
     }
-  }
-  else
-  { // the system starts ehre
-    led.setColor(0, 0, 0);
-    led.lightPixels();
-  }
-
-  bool touchReleased = false;
-  while (!touchReleased)
-  {
-    if (touchRead(TOUCH_PIN) > 20)
-    {
-      touchReleased = true;
-
-      goToDeepSleep();
-    }
-  }
-}
-
-void loop()
-{
 }
